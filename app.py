@@ -3,6 +3,7 @@ import os
 import tempfile
 from flask import Flask, render_template, request, session, redirect, url_for, flash
 from docxtpl import DocxTemplate
+import json
 import time
 
 app = Flask(__name__)
@@ -44,49 +45,88 @@ def portal():
     if 'user' not in session:
         return redirect(url_for('login'))
     user, passw = session['user'], session['pass']
-    # List customer folders: best judgement subfolders under Customers
-    folders = run_keeper_command(['--user', user, '--password', passw, 'ls', '--format=json', CUSTOMER_FOLDER])
-    # List templates
-    templates = run_keeper_command(['--user', user, '--password', passw, 'ls', '--format=json', TEMPLATE_FOLDER])
-    # Simpler UI: form to select customer record, template, fields to map
-    if request.method == 'POST':
-        record_uid = request.form['record_uid']  # From selected customer record
+    folders_json = run_keeper_command(['--user', user, '--password', passw, 'ls', '--format=json', CUSTOMER_FOLDER])
+    templates_json = run_keeper_command(['--user', user, '--password', passw, 'ls', '--format=json', TEMPLATE_FOLDER])
+    if 'Error' in folders_json or 'Error' in templates_json:
+        flash('Error listing folders or templates')
+        folders_list = []
+        templates_list = []
+    else:
+        folders_data = json.loads(folders_json)
+        templates_data = json.loads(templates_json)
+        folders_list = [{'uid': item['record_uid'], 'title': item.get('title', 'Untitled')} for item in folders_data if 'record_uid' in item]
+        templates_list = [{'uid': item['record_uid'], 'title': item.get('title', 'Untitled'), 'notes': item.get('notes', '')} for item in templates_data if 'record_uid' in item]
+    selected_template = request.form.get('template_uid', None) if request.method == 'POST' else None
+    placeholders = []
+    if selected_template:
+        template = next((t for t in templates_list if t['uid'] == selected_template), None)
+        if template and template['notes']:
+            placeholders = [p.strip() for p in template['notes'].split(',')]
+    if request.method == 'POST' and 'generate' in request.form:
+        record_uid = request.form['record_uid']
         template_uid = request.form['template_uid']
-        mappings = {}  # e.g., {'placeholder': 'field_value'} from form
-        for key in request.form:
-            if key.startswith('map_'):
-                placeholder = key[4:]
-                field = request.form[key]
-                # Get field value from record
-                record_data = run_keeper_command(['--user', user, '--password', passw, 'get', '--format=json', record_uid])
-                # Assume parse json, extract field (simplified)
-                value = 'dummy_value'  # TODO: proper parsing
-                mappings[placeholder] = value
-        # Download template
-        with tempfile.TemporaryDirectory() as tmpdir:
-            template_path = os.path.join(tmpdir, 'template.docx')
-            run_keeper_command(['--user', user, '--password', passw, 'download', '--record', template_uid, '--file', template_path])
-            doc = DocxTemplate(template_path)
-            doc.render(mappings)
-            output_path = os.path.join(tmpdir, 'generated.docx')
-            doc.save(output_path)
-            # Create new record in GeneratedDocs
-            new_title = f"Generated_Doc_{record_uid}_{int(time.time())}"
-            create_cmd = run_keeper_command(['--user', user, '--password', passw, 'create', '--folder', GENERATED_FOLDER, '--title', new_title, '--format=json'])
-            new_uid = 'dummy_uid'  # Parse from create_cmd
-            # Upload attachment
-            run_keeper_command(['--user', user, '--password', passw, 'upload', '--record', new_uid, output_path])
-            # Generate share link: default 24h, adjustable
-            expire = request.form.get('expire', '24h')
-            share = run_keeper_command(['--user', user, '--password', passw, 'share-record', '--record', new_uid, '--one-time', f'--expire-in={expire}'])
-            direct_link = f"https://keepersecurity.com/vault#detail/{new_uid}"
-            flash(f"Document created! Share: {share} Direct: {direct_link}")
-    return render_template('portal.html', folders=folders, templates=templates)
+        mappings = {}
+        for ph in placeholders:
+            field = request.form.get(f'map_{ph}', '')
+            record_json = run_keeper_command(['--user', user, '--password', passw, 'get', '--format=json', record_uid])
+            if 'Error' in record_json:
+                flash(record_json)
+                return render_template('portal.html', folders=folders_list, templates=templates_list, placeholders=placeholders, selected_template=template_uid)
+            record_data = json.loads(record_json)
+            value = record_data.get('custom_fields', {}).get(field, record_data.get(field, '') or '')
+            mappings[ph] = value
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                template_path = os.path.join(tmpdir, 'template.docx')
+                attach_result = run_keeper_command(['--user', user, '--password', passw, 'download-attachment', '--record', template_uid, '--name=template.docx', template_path])
+                if 'Error' in attach_result:
+                    raise ValueError(attach_result)
+                doc = DocxTemplate(template_path)
+                doc.render(mappings)
+                output_path = os.path.join(tmpdir, 'generated.docx')
+                doc.save(output_path)
+                new_title = f"Generated_Doc_{record_uid}_{int(time.time())}"
+                create_result = run_keeper_command(['--user', user, '--password', passw, 'create', '--record-type=general', '--folder', GENERATED_FOLDER, '--title', new_title, '--format=json'])
+                if 'Error' in create_result:
+                    raise ValueError(create_result)
+                new_record = json.loads(create_result)
+                new_uid = new_record['uid']
+                upload_result = run_keeper_command(['--user', user, '--password', passw, 'upload-attachment', '--record', new_uid, '--name=generated.docx', output_path])
+                if 'Error' in upload_result:
+                    raise ValueError(upload_result)
+                expire_minutes = {'1h': 60, '24h': 1440, '7d': 10080}.get(request.form.get('expire', '24h'), 1440)
+                share_result = run_keeper_command(['--user', user, '--password', passw, 'share-record', '--record', new_uid, '--expire-in', str(expire_minutes), '--account', 'dummy@share.com'])  # Dummy sharee for link generation
+                direct_link = f"https://keepersecurity.com/vault#detail/{new_uid}"
+                flash(f"Document created! Share result: {share_result} Direct: {direct_link}")
+        except Exception as e:
+            flash(f"Error generating document: {str(e)}")
+    return render_template('portal.html', folders=folders_list, templates=templates_list, placeholders=placeholders, selected_template=selected_template)
 
-@app.route('/admin')
+@app.route('/admin', methods=['GET', 'POST'])
 def admin():
-    # Check role via whoami or enterprise command
-    # Best judgement: simple form to upload templates and define placeholders, store as attachment in Templates
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    user, passw = session['user'], session['pass']
+    enterprise_info = run_keeper_command(['--user', user, '--password', passw, 'enterprise-info', '--format=json'])
+    if 'Error' in enterprise_info:
+        flash('Unable to check roles')
+        return redirect(url_for('portal'))
+    info = json.loads(enterprise_info)
+    is_admin = any(role.get('admin', False) for role in info.get('roles', []))  # Simplified check
+    if not is_admin:
+        flash('Admin access required')
+        return redirect(url_for('portal'))
+    if request.method == 'POST':
+        template_file = request.files['template']
+        placeholders = request.form['placeholders']
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_path = os.path.join(tmpdir, 'new_template.docx')
+            template_file.save(temp_path)
+            new_title = f"Template_{int(time.time())}"
+            create_result = run_keeper_command(['--user', user, '--password', passw, 'create', '--record-type=general', '--folder', TEMPLATE_FOLDER, '--title', new_title, '--notes', placeholders, '--format=json'])
+            new_uid = json.loads(create_result)['uid']
+            run_keeper_command(['--user', user, '--password', passw, 'upload-attachment', '--record', new_uid, '--name=template.docx', temp_path])
+            flash('Template uploaded')
     return render_template('admin.html')
 
 @app.route('/logout')
@@ -95,4 +135,4 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, ssl_context='adhoc') 
