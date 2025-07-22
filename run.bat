@@ -1,0 +1,1 @@
+@echo off\npython app.py\npause 

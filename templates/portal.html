@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portal</title>
+</head>
+<body>
+    <h1>Keeper WebUI Portal</h1>
+    <p>Folders: {{ folders }}</p>
+    <p>Templates: {{ templates }}</p>
+    <form method="post">
+        <!-- Simplified: inputs for record_uid, template_uid, mappings, expire -->
+        <label>Record UID: <input type="text" name="record_uid"></label><br>
+        <label>Template UID: <input type="text" name="template_uid"></label><br>
+        <!-- Add dynamic mappings based on template placeholders -->
+        <label>Example Mapping: <input type="text" name="map_placeholder1"></label><br>
+        <label>Expire: <select name="expire"><option>1h</option><option selected>24h</option><option>7d</option></select></label><br>
+        <input type="submit" value="Generate Document">
+    </form>
+    <a href="{{ url_for('admin') }}">Admin</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+</body>
+</html> 
