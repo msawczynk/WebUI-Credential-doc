@@ -1,0 +1,9 @@
+msgid ""
+msgstr "Language: en\n"
+
+msgid "Login to Keeper WebUI"
+msgstr "Login to Keeper WebUI"
+
+msgid "Email"
+msgstr "Email"
+// Add more for all strings ... 

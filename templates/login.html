@@ -4,11 +4,11 @@
     <title>Login</title>
 </head>
 <body>
-    <h1>Login to Keeper WebUI</h1>
+    <h1>{{ _('Login to Keeper WebUI') }}</h1>
     <form method="post">
-        <label>Email: <input type="text" name="user"></label><br>
-        <label>Password: <input type="password" name="pass"></label><br>
-        <input type="submit" value="Login">
+        <label>{{ _('Email') }}: <input type="text" name="user"></label><br>
+        <label>{{ _('Password') }}: <input type="password" name="pass"></label><br>
+        <input type="submit" value="{{ _('Login') }}">
     </form>
     {% with messages = get_flashed_messages() %}
       {% if messages %}

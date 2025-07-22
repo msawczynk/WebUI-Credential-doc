@@ -4,12 +4,12 @@
     <title>Admin Configurator</title>
 </head>
 <body>
-    <h1>Admin Configurator</h1>
+    <h1>{{ _('Admin Configurator') }}</h1>
     <form method="post">
         <!-- Form to upload template, define placeholders -->
-        <label>Template File: <input type="file" name="template"></label><br>
-        <label>Placeholders (comma-separated): <input type="text" name="placeholders"></label><br>
-        <input type="submit" value="Save Template">
+        <label>{{ _('Template File') }}: <input type="file" name="template"></label><br>
+        <label>{{ _('Placeholders (comma-separated)') }}: <input type="text" name="placeholders"></label><br>
+        <input type="submit" value="{{ _('Save Template') }}">
     </form>
     <a href="{{ url_for('portal') }}">Back to Portal</a>
 </body>

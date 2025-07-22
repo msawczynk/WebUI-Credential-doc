@@ -1,0 +1,9 @@
+msgid ""
+msgstr "Language: de\n"
+
+msgid "Login to Keeper WebUI"
+msgstr "Anmeldung bei Keeper WebUI"
+
+msgid "Email"
+msgstr "E-Mail"
+// Add more ... 

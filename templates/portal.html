@@ -4,39 +4,40 @@
     <title>Portal</title>
 </head>
 <body>
-    <h1>Keeper WebUI Portal</h1>
+    <h1>{{ _('Keeper WebUI Portal') }}</h1>
+    <p>{{ _('Select Language') }}: <a href="{{ url_for('set_language', lang='en') }}">{{ _('English') }}</a> | <a href="{{ url_for('set_language', lang='de') }}">{{ _('German') }}</a></p>
     <p>Folders: {{ folders }}</p>
     <p>Templates: {{ templates }}</p>
     <form method="post">
-        <label>Select Customer Record:
+        <label>{{ _('Select Customer Record') }}:
             <select name="record_uid">
                 {% for folder in folders %}
                     <option value="{{ folder.uid }}">{{ folder.title }}</option>
                 {% endfor %}
             </select>
         </label><br>
-        <label>Select Template:
+        <label>{{ _('Select Template') }}:
             <select name="template_uid">
                 {% for template in templates %}
                     <option value="{{ template.uid }}">{{ template.title }}</option>
                 {% endfor %}
             </select>
         </label><br>
-        <input type="submit" name="select_template" value="Load Placeholders">
+        <input type="submit" name="select_template" value="{{ _('Load Placeholders') }}">
     </form>
     {% if placeholders %}
         <form method="post">
             <input type="hidden" name="record_uid" value="{{ request.form.record_uid }}">
             <input type="hidden" name="template_uid" value="{{ selected_template }}">
             {% for ph in placeholders %}
-                <label>Map {{ ph }} to field: <input type="text" name="map_{{ ph }}" placeholder="e.g., username"></label><br>
+                <label>{{ _('Map') }} {{ ph }} {{ _('to field') }}: <input type="text" name="map_{{ ph }}" placeholder="{{ _('e.g., username') }}"></label><br>
             {% endfor %}
-            <label>Expire: <select name="expire"><option value="1h">1h</option><option value="24h" selected>24h</option><option value="7d">7d</option></select></label><br>
-            <input type="submit" name="generate" value="Generate Document">
+            <label>{{ _('Expire') }}: <select name="expire"><option value="1h">{{ _('1h') }}</option><option value="24h" selected>{{ _('24h') }}</option><option value="7d">{{ _('7d') }}</option></select></label><br>
+            <input type="submit" name="generate" value="{{ _('Generate Document') }}">
         </form>
     {% endif %}
-    <a href="{{ url_for('admin') }}">Admin</a>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('admin') }}">{{ _('Admin') }}</a>
+    <a href="{{ url_for('logout') }}">{{ _('Logout') }}</a>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <ul>
